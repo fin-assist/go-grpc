@@ -164,8 +164,8 @@ func TestUnitInterceptorsRecoverAndNormalizeHandlerFailures(t *testing.T) {
 		if status.Code(err) != status.Code(normalize(cause)) || strings.Contains(status.Convert(err).Message(), "private") {
 			t.Fatalf("unsafe handler error=%v", err)
 		}
-		if !strings.Contains(logs.String(), cause.Error()) {
-			t.Fatalf("cause absent from internal log: %s", logs)
+		if strings.Contains(logs.String(), cause.Error()) {
+			t.Fatalf("raw cause leaked into internal log: %s", logs)
 		}
 	}
 	srv, _ := isolatedServer(t, policy())
@@ -176,5 +176,21 @@ func TestUnitInterceptorsRecoverAndNormalizeHandlerFailures(t *testing.T) {
 	err = srv.stream(nil, &isolatedStream{ctx: incoming(t, "user", "")}, &grpc.StreamServerInfo{FullMethod: streamOut}, func(any, grpc.ServerStream) error { panic("private panic") })
 	if status.Code(err) != codes.Internal || len(status.Convert(err).Details()) != 0 {
 		t.Fatalf("stream panic=%v", err)
+	}
+}
+
+func TestUnitPanicLogsContainOnlySafeEventFields(t *testing.T) {
+	s, logs := isolatedServer(t, policy())
+	_, _ = s.unary(incoming(t, "bank-bff", "u1"), nil, &grpc.UnaryServerInfo{FullMethod: emptyCall}, func(context.Context, any) (any, error) {
+		panic("private-panic postgres://private-dsn token=private-token")
+	})
+	_ = s.stream(nil, &isolatedStream{ctx: incoming(t, "user", "")}, &grpc.StreamServerInfo{FullMethod: streamOut}, func(any, grpc.ServerStream) error { panic("private-panic postgres://private-dsn token=private-token") })
+	if strings.Count(logs.String(), "panic in handler") != 2 {
+		t.Fatal("safe recovery events missing")
+	}
+	for _, secret := range []string{"private-panic", "private-dsn", "private-token", `"stack"`, "goroutine "} {
+		if strings.Contains(logs.String(), secret) {
+			t.Fatalf("panic data leaked: %s", logs.String())
+		}
 	}
 }

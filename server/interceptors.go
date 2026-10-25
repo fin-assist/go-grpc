@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"regexp"
-	"runtime/debug"
 	"time"
 
 	"buf.build/go/protovalidate"
@@ -64,7 +63,7 @@ func (s *Server) authorize(ctx context.Context, method string) (context.Context,
 	caller, err := s.deps.Services.VerifyService(ctx, token)
 	if err != nil {
 		s.denied.WithLabelValues(method, "", "bad_service_token").Inc()
-		s.log.WarnContext(ctx, "service token rejected", "method", method, "error", err)
+		s.log.WarnContext(ctx, "service token rejected", "method", method)
 		return ctx, bare(codes.Unauthenticated)
 	}
 	rule, ok := s.deps.Policy.lookup(method)
@@ -110,7 +109,7 @@ func (s *Server) authorize(ctx context.Context, method string) (context.Context,
 	}
 	deleted, err := s.deps.Tombstones.IsDeleted(ctx, userID)
 	if err != nil {
-		s.log.ErrorContext(ctx, "tombstone check failed", "method", method, "error", err)
+		s.log.ErrorContext(ctx, "tombstone check failed", "method", method)
 		return ctx, bare(codes.Unavailable) // nothing ran yet: safe to retry
 	}
 	if deleted && !rule.AllowDeleted {
@@ -153,7 +152,7 @@ func (s *Server) validate(ctx context.Context, msg any) error {
 	var verr *protovalidate.ValidationError
 	if !asValidation(err, &verr) {
 		// A broken annotation (compilation or runtime error) is our defect, not the caller's.
-		s.log.ErrorContext(ctx, "protovalidate failed", "message", m.ProtoReflect().Descriptor().FullName(), "error", err)
+		s.log.ErrorContext(ctx, "protovalidate failed", "message", m.ProtoReflect().Descriptor().FullName())
 		return finerr.InternalError()
 	}
 	vs := make([]*errdetails.BadRequest_FieldViolation, 0, len(verr.Violations))
@@ -198,8 +197,9 @@ type callInfo struct {
 }
 
 // finish ends a call: cause is what the handler (or an interceptor) returned, the result
-// is what the caller gets (normalize). The log line carries the cause, the metrics and the
-// caller see the result. Labels: method, code, reason — never user_id or another unbounded
+// is what the caller gets (normalize). The log line, metrics and the
+// caller see the result. Raw causes are never logged: they may carry secrets or SQL.
+// Labels: method, code, reason — never user_id or another unbounded
 // value (grpc-api.md 9).
 func (s *Server) finish(ctx context.Context, c callInfo, cause error) error {
 	err := normalize(cause)
@@ -217,10 +217,6 @@ func (s *Server) finish(ctx context.Context, c callInfo, cause error) error {
 	if r != "" {
 		attrs = append(attrs, "reason", r)
 	}
-	if cause != nil {
-		// status.message never reaches the client (grpc-api.md 5.2); here is where it is read.
-		attrs = append(attrs, "error", cause.Error())
-	}
 	if s.log.Enabled(ctx, slog.LevelDebug) {
 		md, _ := metadata.FromIncomingContext(ctx)
 		attrs = append(attrs, "metadata", maskMetadata(md))
@@ -233,14 +229,14 @@ func (s *Server) finish(ctx context.Context, c callInfo, cause error) error {
 }
 
 func (s *Server) recover(ctx context.Context, method string, err *error) {
-	if p := recover(); p != nil {
-		s.log.ErrorContext(ctx, "panic in handler", "method", method, "panic", p, "stack", string(debug.Stack()))
+	if recover() != nil {
+		s.log.ErrorContext(ctx, "panic in handler", "method", method)
 		*err = bare(codes.Internal)
 	}
 }
 
 // The deferred functions run in reverse order: recover turns a panic into a bare INTERNAL,
-// then finish normalizes the error for the caller and logs the call with its cause.
+// then finish normalizes the error for the caller and logs safe status attributes only.
 func (s *Server) unary(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 	c := callInfo{method: info.FullMethod, start: time.Now(), req: req}
 	ctx = withRequestID(ctx)

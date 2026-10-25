@@ -64,7 +64,7 @@ func record(ctx context.Context) seen {
 
 func (t *testService) EmptyCall(ctx context.Context, _ *testgrpc.Empty) (*testgrpc.Empty, error) {
 	if t.panic {
-		panic("handler bug")
+		panic("handler bug token=panic-secret postgres://private-dsn")
 	}
 	t.got <- record(ctx)
 	return &testgrpc.Empty{}, nil
@@ -80,7 +80,7 @@ func (t *testService) UnaryCall(ctx context.Context, _ *testgrpc.SimpleRequest) 
 
 func (t *testService) StreamingOutputCall(_ *testgrpc.StreamingOutputCallRequest, ss testgrpc.TestService_StreamingOutputCallServer) error {
 	if t.panic {
-		panic("stream handler bug")
+		panic("stream handler bug token=panic-secret postgres://private-dsn")
 	}
 	t.got <- record(ss.Context())
 	if t.err != nil {
@@ -292,6 +292,11 @@ func TestIntegrationPanicIsInternalAndLogged(t *testing.T) {
 	if n := strings.Count(e.logs.String(), "panic in handler"); n != 2 {
 		t.Fatalf("panic must be logged for both calls, got %d lines", n)
 	}
+	for _, secret := range []string{"panic-secret", "postgres://private-dsn", "handler bug", `"stack"`, "goroutine "} {
+		if strings.Contains(e.logs.String(), secret) {
+			t.Fatalf("panic data leaked: %s", e.logs.String())
+		}
+	}
 	// finish runs after recover: the call line and the metric see INTERNAL, not OK.
 	for _, m := range []string{emptyCall, streamOut} {
 		if n := testutil.ToFloat64(e.srv.handled.WithLabelValues(m, "Internal", "")); n != 1 {
@@ -322,7 +327,7 @@ func TestIntegrationUserTokenWithoutSubjectIsRefused(t *testing.T) {
 }
 
 // secretText stands for what an internal error may carry: a table name, a DSN, a path.
-const secretText = `relation "user_secret" does not exist`
+const secretText = `relation "user_secret" does not exist; token=private-token; postgres://private-dsn`
 
 // normalizeCases are handler errors with what the caller must see instead. details lists
 // the detail types of a wrapped registry error that must survive the unwrapping.
@@ -427,8 +432,8 @@ func TestIntegrationHandlerErrorsAreNormalized(t *testing.T) {
 						t.Fatalf("detail %s lost on the wire: %v", want, detailNames(err))
 					}
 				}
-				if !strings.Contains(e.logs.String(), "user_secret") {
-					t.Fatalf("the cause must be in the log: %s", e.logs.String())
+				if strings.Contains(e.logs.String(), "user_secret") || strings.Contains(e.logs.String(), "private-token") || strings.Contains(e.logs.String(), "postgres://private-dsn") {
+					t.Fatalf("the cause leaked into log: %s", e.logs.String())
 				}
 			})
 		}
@@ -574,7 +579,7 @@ func TestUnitValidationBecomesBadRequest(t *testing.T) {
 // protovalidate then fails with a compilation error, not a validation one.
 func brokenRuleMessage(t *testing.T) *dynamicpb.Message {
 	t.Helper()
-	rule := validate.Rule_builder{Id: proto.String("broken"), Expression: proto.String("this.nope.nope(")}.Build()
+	rule := validate.Rule_builder{Id: proto.String("broken"), Expression: proto.String("this.privateTokenSyntax(")}.Build()
 	o := &descriptorpb.FieldOptions{}
 	proto.SetExtension(o, validate.E_Field, validate.FieldRules_builder{Cel: []*validate.Rule{rule}}.Build())
 	fdp := &descriptorpb.FileDescriptorProto{

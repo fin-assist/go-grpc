@@ -110,7 +110,7 @@ func TestAPIActualServerClientValidationAndRedaction(t *testing.T) {
 					t.Fatal("logging mutated consumer message")
 				}
 			}
-			if strings.Contains(logs.String(), "private-") {
+			if strings.Contains(logs.String(), "private-") || strings.Contains(logs.String(), "privateTokenSyntax") {
 				t.Fatal("outgoing metadata leaked", logs.String())
 			}
 		})

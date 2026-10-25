@@ -12,7 +12,7 @@ import (
 // bare is the only place outside finerr that builds a status: refusals between services
 // that never reach the client carry a bare code without ErrorInfo (grpc-api.md 5.1,
 // rule 3); bank-bff turns them into 500. The message is generic, so it reveals nothing to
-// a foreign caller; the cause goes to our log.
+// a foreign caller; logs contain only safe event/status attributes.
 func bare(c codes.Code) error {
 	return status.Error(c, c.String()) //nolint:forbidigo // bare internal code, grpc-api.md 5.1 rule 3
 }
@@ -22,7 +22,7 @@ func bare(c codes.Code) error {
 // wrapping text as status.message. Any other error becomes a bare code: grpc-go would send
 // it as UNKNOWN with err.Error() as the message, and that text (a pgx error with a table
 // name, a wrapped DSN) would leave the process. Context errors keep their codes so the
-// caller can tell a timeout from a defect. The original error goes to the log line.
+// caller can tell a timeout from a defect. Logs retain only safe event/status attributes.
 func normalize(err error) error {
 	if err == nil {
 		return nil

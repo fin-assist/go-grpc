@@ -53,7 +53,7 @@ func TestIntegrationBrokenRuleIsServiceFailureOnWire(t *testing.T) {
 	message := brokenRuleMessage(t)
 	conn, logs, _ := dynamicTransport(t, message)
 	err := conn.Invoke(t.Context(), "/consumer.Validation/Check", message, &testgrpc.Empty{})
-	if server.Reason(err) != "INTERNAL_ERROR" || !strings.Contains(logs.String(), "protovalidate failed") {
+	if server.Reason(err) != "INTERNAL_ERROR" || !strings.Contains(logs.String(), "protovalidate failed") || strings.Contains(logs.String(), "privateTokenSyntax") {
 		t.Fatalf("compiler error blamed on user: %v logs %s", err, logs.String())
 	}
 }

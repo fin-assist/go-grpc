@@ -25,3 +25,5 @@ CI сохраняет unit/integration/API/combined reports, native breakdowns, 
 Unit используют fake invoker/stream/verifiers и чистые context/policy/status операции без сети. Integration проверяют реальные grpc.Server/client transport, retry/deadline, stream, validation/masking и остановку. API выполняются внешними пакетами `_test` через публичные server/client/reqctx, generated clients и фактическую цепочку. Private helpers не выдаются за API. SQL и бизнес-RPC не добавляются.
 
 Эта новая библиотека не получает template N/A: фиксированная identity `fin-assist/go-library-template` в check-suite.sh сохранена намеренно. Все три suites обязаны иметь production statements и total80. Runtime не использует PG, internal/pgtest оставлен как тестовая инфраструктура; только этот точный пакет исключён из одинакового instrumentation list.
+
+Подтверждённые P1 logging leaks исходного кода исправлены в FIN-250: отрицательные unit/integration/API tests проверяют отсутствие raw SQL/DSN/token/error, panic payload и stack trace в unary/stream журналах при сохранении RPC статусов/details, RED и recovery. До production fix эти регрессии воспроизводили утечку.

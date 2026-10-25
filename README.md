@@ -33,7 +33,7 @@ Server устанавливает request ID, проверяет service identit
 
 `Rule.AllowDeleted` перенесён из действующего user: false по умолчанию; true только для exact ModelUser cleanup methods; wildcard и другие модели отклоняются Check/Serve. Не обходит service caller, валидность токена, subject или tombstone lookup failure. Не задаётся metadata/request. Это сохраняет реальную семантику user при будущем подключении библиотеки. `ModelUser`, `ModelSystem`, `ModelMixed`, `ModelNoUser`, wildcard policy и exact-method precedence сохранены.
 
-`DevServiceVerifier`, `DevUserVerifier`, `DevToken` и Reflection допустимы только при явной dev-сборке сервиса. Библиотека не читает окружение и сама не включает dev-режим. Логгер/registry/verifiers передаются сервисом. Debug-логи маскируют token-поля и bytes protobuf на любой глубине, secret metadata и binary metadata. Logger enrichment значениями reqctx остаётся у сервиса.
+`DevServiceVerifier`, `DevUserVerifier`, `DevToken` и Reflection допустимы только при явной dev-сборке сервиса. Библиотека не читает окружение и сама не включает dev-режим. Логгер/registry/verifiers передаются сервисом. Debug-логи маскируют token-поля и bytes protobuf на любой глубине, secret metadata и binary metadata. Logger enrichment значениями reqctx остаётся у сервиса. Security correction относительно исходного шаблона: raw handler/verifier/tombstone/validation errors, panic payload и stack trace больше не пишутся в журнал; остаются безопасные event/method/code/reason и прежние masked metadata/request. RPC status/details, metrics и recovery сохраняются.
 
 ## Метрики
 

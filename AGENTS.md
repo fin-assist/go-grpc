@@ -352,3 +352,7 @@ Only exact ModelUser methods may enable it; Check/Serve reject wildcard or other
 remain consumer interfaces, not reimplementations of go-identity/go-tombstone. Dev verifiers/tokens and reflection
 must only be wired in development by the service. The library never reads ENV/AUTH_MODE.
 The root package has documentation only; ordinary production code in all subpackages shares the same coverage denominator.
+
+FIN-250 security correction: never log raw handler, verifier, tombstone or validation errors,
+panic values or stack traces. Record only safe event/method/code/reason; keep status/details,
+RED and recovery semantics. Tests assert absence of sensitive causes in unary and streaming logs.
