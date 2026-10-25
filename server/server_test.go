@@ -661,14 +661,20 @@ func TestIntegrationMixedModelFailsClosed(t *testing.T) {
 	default:
 	}
 
-	unnamed := start(t, policy(), func(d *Deps) { d.Services = nameless{} })
-	_, err := testgrpc.NewTestServiceClient(unnamed.conn).EmptyCall(call(t, "bank-bff", "u1"), &testgrpc.Empty{})
+	// The exploitable case: a method open to AnyCaller (GetSigningKeys in user). Without the
+	// empty-name check a verifier that names no caller passed the policy and ran the handler.
+	anyCaller := Policy{"/grpc.testing.TestService/*": {Callers: []string{AnyCaller}, Model: ModelNoUser}}
+	unnamed := start(t, anyCaller, func(d *Deps) { d.Services = nameless{} })
+	_, err := testgrpc.NewTestServiceClient(unnamed.conn).EmptyCall(call(t, "bank-bff", ""), &testgrpc.Empty{})
 	if status.Code(err) != codes.Unauthenticated || len(status.Convert(err).Details()) != 0 {
-		t.Fatalf("unnamed caller: got %v, want a bare UNAUTHENTICATED", err)
+		t.Fatalf("unnamed caller of an AnyCaller method: got %v, want a bare UNAUTHENTICATED", err)
 	}
 	select {
 	case <-unnamed.svc.got:
 		t.Fatal("the handler ran for an unnamed caller")
 	default:
+	}
+	if n := testutil.ToFloat64(unnamed.srv.denied.WithLabelValues(emptyCall, "", "bad_service_token")); n != 1 {
+		t.Fatalf("denied{bad_service_token} = %v, want 1", n)
 	}
 }

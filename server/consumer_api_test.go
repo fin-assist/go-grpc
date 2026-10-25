@@ -676,10 +676,12 @@ func TestAPIMixedModelRequiresVerifiedUserForUserPath(t *testing.T) {
 		t.Fatalf("user variant: %+v", got)
 	}
 
-	unnamed := start(t, policy(), func(d *server.Deps) { d.Services = unnamedCaller{} })
-	_, err := testgrpc.NewTestServiceClient(unnamed.conn).EmptyCall(call(t, "bank-bff", "u1"), &testgrpc.Empty{})
+	// AnyCaller (GetSigningKeys in user) is where an unnamed caller used to pass the policy.
+	anyCaller := server.Policy{"/grpc.testing.TestService/*": {Callers: []string{server.AnyCaller}, Model: server.ModelNoUser}}
+	unnamed := start(t, anyCaller, func(d *server.Deps) { d.Services = unnamedCaller{} })
+	_, err := testgrpc.NewTestServiceClient(unnamed.conn).EmptyCall(call(t, "bank-bff", ""), &testgrpc.Empty{})
 	if status.Code(err) != codes.Unauthenticated || len(status.Convert(err).Details()) != 0 {
-		t.Fatalf("unnamed caller: got %v, want a bare UNAUTHENTICATED", err)
+		t.Fatalf("unnamed caller of an AnyCaller method: got %v, want a bare UNAUTHENTICATED", err)
 	}
 	if n := metric(unnamed.reg, "finassist_grpc_denied_total", map[string]string{"method": emptyCall, "caller": "", "cause": "bad_service_token"}); n != 1 {
 		t.Fatalf("denied{bad_service_token} = %v, want 1", n)

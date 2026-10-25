@@ -10,6 +10,7 @@ import (
 
 	"github.com/fin-assist/contracts/gen/go/finerr"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	testgrpc "google.golang.org/grpc/interop/grpc_testing"
@@ -125,15 +126,22 @@ func TestUnitUnaryRejectsInvalidTokensAndMessages(t *testing.T) {
 			t.Fatalf("authorization %q: %v", header, err)
 		}
 	}
-	unnamedServer, logs := isolatedServer(t, Policy{emptyCall: {Callers: []string{"bank-bff"}, Model: ModelNoUser}}, func(d *Deps) { d.Services = nameless{} })
-	if _, err := unnamedServer.authorize(incoming(t, "bank-bff", ""), emptyCall); status.Code(err) != codes.Unauthenticated || len(status.Convert(err).Details()) != 0 {
+	unnamedServer, logs := isolatedServer(t, Policy{emptyCall: {Callers: []string{AnyCaller}, Model: ModelNoUser}}, func(d *Deps) { d.Services = nameless{} })
+	_, err := unnamedServer.unary(incoming(t, "bank-bff", ""), &testgrpc.Empty{}, &grpc.UnaryServerInfo{FullMethod: emptyCall}, func(context.Context, any) (any, error) {
+		t.Error("an unnamed caller reached an AnyCaller handler")
+		return nil, nil
+	})
+	if status.Code(err) != codes.Unauthenticated || len(status.Convert(err).Details()) != 0 {
 		t.Fatalf("unnamed caller: %v", err)
+	}
+	if n := testutil.ToFloat64(unnamedServer.denied.WithLabelValues(emptyCall, "", "bad_service_token")); n != 1 {
+		t.Fatalf("denied{bad_service_token} = %v, want 1", n)
 	}
 	if !strings.Contains(logs.String(), "service token rejected") {
 		t.Fatalf("unnamed caller not logged as a rejected token: %s", logs.String())
 	}
 	subjectlessServer, _ := isolatedServer(t, policy(), func(d *Deps) { d.Users = subjectless{} })
-	_, err := subjectlessServer.authorize(incoming(t, "bank-bff", "u1"), emptyCall)
+	_, err = subjectlessServer.authorize(incoming(t, "bank-bff", "u1"), emptyCall)
 	if Reason(err) != "INVALID_TOKEN" {
 		t.Fatal(err)
 	}
