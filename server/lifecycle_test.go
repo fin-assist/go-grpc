@@ -114,6 +114,11 @@ func TestUnitMaskMetadata(t *testing.T) {
 			t.Errorf("%s: %q, want %q", k, got[k], v)
 		}
 	}
+	for _, rejected := range [][]string{{"id\nforged"}, {strings.Repeat("L", 129)}, {"ok", "bad id"}} {
+		if got := maskMetadata(metadata.MD{"x-request-id": rejected})["x-request-id"]; got != "(replaced)" {
+			t.Errorf("rejected request ID %q logged as %q", rejected, got)
+		}
+	}
 }
 
 // tokenMessage builds a message with token fields in every shape maskFields handles:

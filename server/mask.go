@@ -18,13 +18,16 @@ var secretKeys = map[string]bool{
 }
 
 // maskMetadata returns md for a log line: secret keys and keys with "token" in the name
-// masked, binary (-bin) values dropped.
+// masked, binary (-bin) values dropped, an x-request-id of unexpected shape replaced.
 func maskMetadata(md metadata.MD) map[string]string {
 	out := make(map[string]string, len(md))
 	for k, vs := range md {
 		switch {
 		case secretKeys[k] || strings.Contains(k, "token"):
 			out[k] = masked
+		case k == mdRequestID && !validRequestIDs(vs):
+			// withRequestID replaced it; the rejected client value stays out of the log too.
+			out[k] = "(replaced)"
 		case strings.HasSuffix(k, "-bin"):
 			out[k] = "(binary)"
 		default:
@@ -86,4 +89,13 @@ func maskFields(m protoreflect.Message) {
 		}
 		return true
 	})
+}
+
+func validRequestIDs(vs []string) bool {
+	for _, v := range vs {
+		if !requestIDShape.MatchString(v) {
+			return false
+		}
+	}
+	return true
 }
