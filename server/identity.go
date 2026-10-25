@@ -10,8 +10,8 @@ import (
 )
 
 // ServiceVerifier checks the ServiceAccount token from x-service-authorization and returns
-// the caller name (grpc-api.md 3.3). Any error refuses the call with a bare
-// UNAUTHENTICATED: internal refusals carry no ErrorInfo (5.1, rule 3).
+// the caller name (grpc-api.md 3.3). Any error, or an empty name, refuses the call with a
+// bare UNAUTHENTICATED: internal refusals carry no ErrorInfo (5.1, rule 3).
 //
 // The implementation comes from the identity library (FIN-119): local check against the
 // JWKS of the API server — signature, exp, iss, aud finassist-internal.

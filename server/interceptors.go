@@ -61,7 +61,9 @@ func (s *Server) authorize(ctx context.Context, method string) (context.Context,
 		return ctx, bare(codes.Unauthenticated)
 	}
 	caller, err := s.deps.Services.VerifyService(ctx, token)
-	if err != nil {
+	if err != nil || caller == "" {
+		// An empty name would match an empty Callers entry and leave reqctx.Caller unset:
+		// a verifier that accepts a token without naming the caller is refused like a bad token.
 		s.denied.WithLabelValues(method, "", "bad_service_token").Inc()
 		s.log.WarnContext(ctx, "service token rejected", "method", method)
 		return ctx, bare(codes.Unauthenticated)
@@ -79,6 +81,9 @@ func (s *Server) authorize(ctx context.Context, method string) (context.Context,
 		ctx = clientHints(ctx)
 	}
 
+	// Presence of the key, not of a non-empty first value, marks a user call: an empty or
+	// repeated authorization is still a header that must verify.
+	authorization := metadata.ValueFromIncomingContext(ctx, mdAuthorization)
 	userToken, hasUser := bearer(first(ctx, mdAuthorization))
 	switch rule.Model {
 	case ModelSystem, ModelNoUser:
@@ -89,8 +94,14 @@ func (s *Server) authorize(ctx context.Context, method string) (context.Context,
 			return ctx, finerr.InvalidToken()
 		}
 	case ModelMixed:
-		if !hasUser {
+		// The header, not its parse, selects the variant: a malformed token must not turn a
+		// user call into a system one. bank-bff calls only on behalf of a user (grpc-api.md
+		// 3.1, 3.3), so it never gets the system variant with user_id from the request.
+		if len(authorization) == 0 && caller != bankBFF {
 			return ctx, nil // the system variant: user_id is a request field
+		}
+		if !hasUser {
+			return ctx, finerr.InvalidToken()
 		}
 	default:
 		// Policy.validate rejects such a rule before Serve; refuse rather than guess.
