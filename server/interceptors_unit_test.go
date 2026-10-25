@@ -10,6 +10,7 @@ import (
 
 	"github.com/fin-assist/contracts/gen/go/finerr"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	testgrpc "google.golang.org/grpc/interop/grpc_testing"
@@ -56,6 +57,9 @@ func TestUnitUnaryAdmissionBeforeEffects(t *testing.T) {
 		{name: "tombstone-unavailable", method: emptyCall, caller: "bank-bff", user: "broken", code: codes.Unavailable},
 		{name: "mixed-system", method: unaryCall, caller: "assistant", want: seen{caller: "assistant"}},
 		{name: "mixed-user", method: unaryCall, caller: "assistant", user: "u1", want: seen{caller: "assistant", user: "u1", hasUser: true}},
+		{name: "mixed-bank-bff-user", method: unaryCall, caller: "bank-bff", user: "u1", want: seen{caller: "bank-bff", user: "u1", hasUser: true, ip: "203.0.113.9", version: "android/test", readPrimary: true}},
+		{name: "mixed-bank-bff-without-user", method: unaryCall, caller: "bank-bff", code: codes.Unauthenticated, reason: "INVALID_TOKEN"},
+		{name: "mixed-deleted-user", method: unaryCall, caller: "assistant", user: "gone", code: codes.Unauthenticated, reason: "TOKEN_REVOKED"},
 		{name: "system-ignores-user-and-hints", method: streamOut, caller: "user", user: "gone", want: seen{caller: "user"}},
 		{name: "no-user", method: "/grpc.testing.TestService/Nop", caller: "user", user: "gone", want: seen{caller: "user"}},
 		{name: "open-health", method: "/grpc.health.v1.Health/Check"},
@@ -110,8 +114,36 @@ func TestUnitUnaryRejectsInvalidTokensAndMessages(t *testing.T) {
 			}
 		})
 	}
+	// FIN-299: a present authorization header selects the user variant of a mixed method;
+	// a header that is not a bearer token is INVALID_TOKEN, never a system call.
+	for _, values := range [][]string{{"Basic dXNlcjpwYXNz"}, {"Bearer"}, {"Bearer "}, {"token-without-scheme"}, {""}, {"", "Bearer dev:u1"}} {
+		header := strings.Join(values, ",")
+		md := metadata.Pairs(mdServiceAuthorization, "Bearer dev:assistant")
+		md.Append(mdAuthorization, values...)
+		_, err := srv.unary(metadata.NewIncomingContext(t.Context(), md), &testgrpc.SimpleRequest{}, &grpc.UnaryServerInfo{FullMethod: unaryCall}, func(context.Context, any) (any, error) {
+			t.Errorf("malformed authorization %q reached the handler", header)
+			return nil, nil
+		})
+		if status.Code(err) != codes.Unauthenticated || Reason(err) != "INVALID_TOKEN" {
+			t.Fatalf("authorization %q: %v", header, err)
+		}
+	}
+	unnamedServer, logs := isolatedServer(t, Policy{emptyCall: {Callers: []string{AnyCaller}, Model: ModelNoUser}}, func(d *Deps) { d.Services = nameless{} })
+	_, err := unnamedServer.unary(incoming(t, "bank-bff", ""), &testgrpc.Empty{}, &grpc.UnaryServerInfo{FullMethod: emptyCall}, func(context.Context, any) (any, error) {
+		t.Error("an unnamed caller reached an AnyCaller handler")
+		return nil, nil
+	})
+	if status.Code(err) != codes.Unauthenticated || len(status.Convert(err).Details()) != 0 {
+		t.Fatalf("unnamed caller: %v", err)
+	}
+	if n := testutil.ToFloat64(unnamedServer.denied.WithLabelValues(emptyCall, "", "bad_service_token")); n != 1 {
+		t.Fatalf("denied{bad_service_token} = %v, want 1", n)
+	}
+	if !strings.Contains(logs.String(), "service token rejected") {
+		t.Fatalf("unnamed caller not logged as a rejected token: %s", logs.String())
+	}
 	subjectlessServer, _ := isolatedServer(t, policy(), func(d *Deps) { d.Users = subjectless{} })
-	_, err := subjectlessServer.authorize(incoming(t, "bank-bff", "u1"), emptyCall)
+	_, err = subjectlessServer.authorize(incoming(t, "bank-bff", "u1"), emptyCall)
 	if Reason(err) != "INVALID_TOKEN" {
 		t.Fatal(err)
 	}

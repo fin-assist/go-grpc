@@ -499,6 +499,7 @@ func TestUnitPolicyValidation(t *testing.T) {
 		"deleted system":   {emptyCall: {Callers: []string{"a"}, Model: ModelSystem, AllowDeleted: true}},
 		"bad key":          {"grpc.testing.TestService/EmptyCall": {Callers: []string{"a"}, Model: ModelUser}},
 		"no callers":       {emptyCall: {Model: ModelUser}},
+		"empty caller":     {emptyCall: {Callers: []string{"bank-bff", ""}, Model: ModelUser}},
 		"no model":         {emptyCall: {Callers: []string{"a"}}},
 	} {
 		if err := p.validate(grpc.NewServer()); err == nil {
@@ -631,5 +632,51 @@ func TestUnitMaskMessage(t *testing.T) {
 	}
 	if maskMessage(nil) != nil {
 		t.Fatal("nil")
+	}
+}
+
+// nameless verifies every service token but names no caller, as a broken verifier might.
+type nameless struct{}
+
+func (nameless) VerifyService(context.Context, string) (string, error) { return "", nil }
+
+// FIN-299: over the real transport a mixed method never turns a call without a verified
+// user token into a system one, and a caller without a name is refused.
+func TestIntegrationMixedModelFailsClosed(t *testing.T) {
+	e := start(t, policy())
+	c := testgrpc.NewTestServiceClient(e.conn)
+	for name, ctx := range map[string]context.Context{
+		"malformed authorization": call(t, "assistant", "", "authorization", "Basic dXNlcjpwYXNz"),
+		"empty bearer":            call(t, "assistant", "", "authorization", "Bearer "),
+		"bank-bff without user":   call(t, "bank-bff", ""),
+		"empty authorization":     call(t, "assistant", "", "authorization", ""),
+		"empty first of two":      call(t, "assistant", "", "authorization", "", "authorization", "Bearer dev:u1"),
+	} {
+		_, err := c.UnaryCall(ctx, &testgrpc.SimpleRequest{})
+		if status.Code(err) != codes.Unauthenticated || reasonOf(err) != "INVALID_TOKEN" {
+			t.Fatalf("%s: got %v (reason %q), want INVALID_TOKEN", name, err, reasonOf(err))
+		}
+	}
+	select {
+	case got := <-e.svc.got:
+		t.Fatalf("the handler ran as %+v for a call without a verified user", got)
+	default:
+	}
+
+	// The exploitable case: a method open to AnyCaller (GetSigningKeys in user). Without the
+	// empty-name check a verifier that names no caller passed the policy and ran the handler.
+	anyCaller := Policy{"/grpc.testing.TestService/*": {Callers: []string{AnyCaller}, Model: ModelNoUser}}
+	unnamed := start(t, anyCaller, func(d *Deps) { d.Services = nameless{} })
+	_, err := testgrpc.NewTestServiceClient(unnamed.conn).EmptyCall(call(t, "bank-bff", ""), &testgrpc.Empty{})
+	if status.Code(err) != codes.Unauthenticated || len(status.Convert(err).Details()) != 0 {
+		t.Fatalf("unnamed caller of an AnyCaller method: got %v, want a bare UNAUTHENTICATED", err)
+	}
+	select {
+	case <-unnamed.svc.got:
+		t.Fatal("the handler ran for an unnamed caller")
+	default:
+	}
+	if n := testutil.ToFloat64(unnamed.srv.denied.WithLabelValues(emptyCall, "", "bad_service_token")); n != 1 {
+		t.Fatalf("denied{bad_service_token} = %v, want 1", n)
 	}
 }
