@@ -1,10 +1,9 @@
 # Instructions for code agents
 
-A Go library of «Понятные финансы» (B2C personal finance: OFX statement import from T-Bank, operations, analytics,
-LLM assistant), made from `fin-assist/go-library-template`. The Go services (`bank-bff`, `user`,
-`bank-statement-data`, `analytics`, `assistant`, made from `fin-assist/go-service-template`) import it at a tagged
-version. Read by Claude Code (through `CLAUDE.md`) and by Codex. This file is the orientation map: read it and
-`README.md` first, then open only what the task touches.
+`github.com/fin-assist/go-grpc` (FIN-250) contains shared gRPC server, outgoing clients and request context.
+Extracted from go-service-template; user/assistant business handlers, wire, access policy and jobs remain in services.
+The library does not own identity keys, tombstone storage, migrations or service configuration.
+Read README.md and this file before changes. Only Codex review is requested while the owner's Claude quota is exhausted.
 
 ## Keep this file current
 
@@ -33,9 +32,9 @@ for itself: what it does, its YouTrack issue, which services use it.
 | What | Where |
 |---|---|
 | Package documentation: what the library does, what it needs from the service | `doc.go` |
-| Public API of the library | root package (`*.go`); subpackages only for parts with different consumers |
+| Public API of the library | `server/`, `client/`, `reqctx/` |
 | Implementation details | `internal/` |
-| Migration source for the service runner (`Migrations`, `MigrationsName`, `MigrationsTable`) | `migrations.go`, `migrations/` |
+| No library migrations | services retain their own SQL; `internal/pgtest/` is test infrastructure only |
 | PostgreSQL for tests, up → down → up check | `internal/pgtest/` (mirrors `migratetest` of the service template) |
 | Integration guide for services | `README.md`, «Внедрение» |
 | Versions, compatibility, releases, Renovate | `docs/releasing.md`, `CHANGELOG.md`, `.github/workflows/release.yml`, `renovate.json` |
@@ -342,3 +341,14 @@ identifier, behaviour, migration and dependency check:
 ## Renovate automation
 
 FIN-211: dependency-only Renovate PRs may be merged/closed by the reviewed `renovate-policy.yml` controller, after exact-head required CI and bot-only commit checks. Ordinary PRs and release-to-main PRs still require the owner. Do not enable native automerge or bypass protections. Preserve base policy in `renovate-base.json` (schedules, groups, allowed versions and manual Go upgrades); generated target/version approvals live on the separate `renovate-policy` branch. Failed exact values are isolated for explicit Dashboard approval; new values keep their original groups. AndroidX/Compose and mixed groups never auto-merge. See `docs/renovate-policy.md` for credentials, safeguards, bootstrap and verification.
+
+## FIN-250 extraction compatibility
+
+Keep server metrics `grpc_server_handled_total`, `grpc_server_handling_seconds`, `finassist_grpc_denied_total`
+and client metrics `grpc_client_handled_total`, `grpc_client_handling_seconds`: their existing names are compatibility
+contracts, an explicit exception to the generic metric prefix convention. Policy is supplied by the service.
+`Rule.AllowDeleted` preserves user cleanup semantics: default false, evaluated only after caller and token checks.
+Only exact ModelUser methods may enable it; Check/Serve reject wildcard or other models. Metadata cannot enable it. Identity verifiers and tombstones
+remain consumer interfaces, not reimplementations of go-identity/go-tombstone. Dev verifiers/tokens and reflection
+must only be wired in development by the service. The library never reads ENV/AUTH_MODE.
+The root package has documentation only; ordinary production code in all subpackages shares the same coverage denominator.
