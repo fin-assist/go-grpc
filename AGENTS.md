@@ -3,7 +3,7 @@
 `github.com/fin-assist/go-grpc` (FIN-250) contains shared gRPC server, outgoing clients and request context.
 Extracted from go-service-template; user/assistant business handlers, wire, access policy and jobs remain in services.
 The library does not own identity keys, tombstone storage, migrations or service configuration.
-Read README.md and this file before changes. Only Codex review is requested while the owner's Claude quota is exhausted.
+Read README.md and this file before changes.
 
 ## Keep this file current
 
