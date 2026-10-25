@@ -22,7 +22,7 @@ import (
 
 // Options configures the server.
 type Options struct {
-	MaxRecvMsgSize int  // bytes; 4 MiB by default, 16 MiB where SearchOperations is served
+	MaxRecvMsgSize int  // bytes of one received message; 4 MiB by default (grpc-api.md 9). The 16 MiB of SearchOperations is its response, not limited on send
 	Reflection     bool // dev only
 }
 
