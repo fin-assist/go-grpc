@@ -56,3 +56,7 @@ Peer/method/policy — статические значения сервиса; u
 [docs/testing.md](docs/testing.md): независимые total80 unit/integration/API, закреплённый go-test-coverage/v2 v2.20.1, accepted79,95% rounding. Один `go list -race ./...` denominator, исключён только exact `<module>/internal/pgtest`; suite остаётся `./...`. Пустые/skipped/failed suites и неисполняемый профиль отклоняются. N/A исходного шаблона сюда не переносится. Combined — информационный штатный union. Required job `go` проверяет все шесть collection/check outcomes; artifacts содержат профили, JSONL, отчёты и breakdowns. Pipeline Python regressions сохранены.
 
 `api` — gorelease, `lint` — golangci-lint, `migrations` защищает released SQL, release/Renovate checks сохранены. [CHANGELOG.md](CHANGELOG.md), [docs/releasing.md](docs/releasing.md), [AGENTS.md](AGENTS.md). Первый тег ставит владелец отдельно; merge/tags этим PR не выполняются. Подключение сервисов — отдельные задачи.
+
+## Выключенный контроллер FIN-260
+
+`RENOVATE_POLICY_ENABLED` включает controller только при точном строчном `true`. Отсутствие/false/TRUE/True — успешный no-op до token/config/event/API. Отдельный непривилегированный workflow gate не получает secrets, Environment и checkout; только его канонический output допускает reconcile в main-only Environment. Явный `--bootstrap` остаётся отдельной credential-required операцией и не включает controller. Enabled guards, проверки защиты и текущего head сохранены. Этот PR не меняет флаги/защиты/policy branch; bootstrap/readback координируется отдельно по FIN-260.

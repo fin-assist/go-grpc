@@ -356,3 +356,9 @@ The root package has documentation only; ordinary production code in all subpack
 FIN-250 security correction: never log raw handler, verifier, tombstone or validation errors,
 panic values or stack traces. Record only safe event/method/code/reason; keep status/details,
 RED and recovery semantics. Tests assert absence of sensitive causes in unary and streaming logs.
+
+FIN-260: controller admission requires exact case-sensitive lowercase true. The independent gate
+has no secrets, Environment or checkout. Disabled CLI returns before token/config/event/API;
+--bootstrap is explicit and credential-required independently of activation. Preserve enabled
+identity/protection/current-head guards. No runtime/coverage weakening, controller activation,
+branch protection or bootstrap mutation is authorized by the code change itself.
