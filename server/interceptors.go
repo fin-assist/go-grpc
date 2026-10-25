@@ -81,8 +81,10 @@ func (s *Server) authorize(ctx context.Context, method string) (context.Context,
 		ctx = clientHints(ctx)
 	}
 
-	header := first(ctx, mdAuthorization)
-	userToken, hasUser := bearer(header)
+	// Presence of the key, not of a non-empty first value, marks a user call: an empty or
+	// repeated authorization is still a header that must verify.
+	authorization := metadata.ValueFromIncomingContext(ctx, mdAuthorization)
+	userToken, hasUser := bearer(first(ctx, mdAuthorization))
 	switch rule.Model {
 	case ModelSystem, ModelNoUser:
 		// Neither acts for a user: an authorization header, if any, is ignored.
@@ -95,7 +97,7 @@ func (s *Server) authorize(ctx context.Context, method string) (context.Context,
 		// The header, not its parse, selects the variant: a malformed token must not turn a
 		// user call into a system one. bank-bff calls only on behalf of a user (grpc-api.md
 		// 3.1, 3.3), so it never gets the system variant with user_id from the request.
-		if header == "" && caller != bankBFF {
+		if len(authorization) == 0 && caller != bankBFF {
 			return ctx, nil // the system variant: user_id is a request field
 		}
 		if !hasUser {

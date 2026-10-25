@@ -21,7 +21,7 @@ const (
 	ModelSystem
 	// ModelMixed: user call when authorization is present, system call otherwise
 	// (GetAnalytics, ListPeriods, GetAssistantConsentStatus: optional user_id). A present
-	// but malformed authorization is INVALID_TOKEN, never a system call; bank-bff always
+	// but malformed or empty authorization is INVALID_TOKEN, never a system call; bank-bff always
 	// calls as a user, so its call without authorization is INVALID_TOKEN too.
 	ModelMixed
 	// ModelNoUser: no user token yet (sign-in: AuthService). authorization is ignored.

@@ -648,6 +648,8 @@ func TestAPIMixedModelRequiresVerifiedUserForUserPath(t *testing.T) {
 		{"bank-bff with a malformed authorization", call(t, "bank-bff", "", "authorization", "Basic dXNlcjpwYXNz")},
 		{"assistant with a malformed authorization", call(t, "assistant", "", "authorization", "Bearer ")},
 		{"assistant with a forged token", call(t, "assistant", "", "authorization", "Bearer forged")},
+		{"assistant with an empty authorization", call(t, "assistant", "", "authorization", "")},
+		{"assistant with an empty first authorization", call(t, "assistant", "", "authorization", "", "authorization", "Bearer dev:u1")},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

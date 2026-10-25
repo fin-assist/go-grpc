@@ -116,8 +116,10 @@ func TestUnitUnaryRejectsInvalidTokensAndMessages(t *testing.T) {
 	}
 	// FIN-299: a present authorization header selects the user variant of a mixed method;
 	// a header that is not a bearer token is INVALID_TOKEN, never a system call.
-	for _, header := range []string{"Basic dXNlcjpwYXNz", "Bearer", "Bearer ", "token-without-scheme"} {
-		md := metadata.Pairs(mdServiceAuthorization, "Bearer dev:assistant", mdAuthorization, header)
+	for _, values := range [][]string{{"Basic dXNlcjpwYXNz"}, {"Bearer"}, {"Bearer "}, {"token-without-scheme"}, {""}, {"", "Bearer dev:u1"}} {
+		header := strings.Join(values, ",")
+		md := metadata.Pairs(mdServiceAuthorization, "Bearer dev:assistant")
+		md.Append(mdAuthorization, values...)
 		_, err := srv.unary(metadata.NewIncomingContext(t.Context(), md), &testgrpc.SimpleRequest{}, &grpc.UnaryServerInfo{FullMethod: unaryCall}, func(context.Context, any) (any, error) {
 			t.Errorf("malformed authorization %q reached the handler", header)
 			return nil, nil

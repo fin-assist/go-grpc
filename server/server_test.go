@@ -649,6 +649,8 @@ func TestIntegrationMixedModelFailsClosed(t *testing.T) {
 		"malformed authorization": call(t, "assistant", "", "authorization", "Basic dXNlcjpwYXNz"),
 		"empty bearer":            call(t, "assistant", "", "authorization", "Bearer "),
 		"bank-bff without user":   call(t, "bank-bff", ""),
+		"empty authorization":     call(t, "assistant", "", "authorization", ""),
+		"empty first of two":      call(t, "assistant", "", "authorization", "", "authorization", "Bearer dev:u1"),
 	} {
 		_, err := c.UnaryCall(ctx, &testgrpc.SimpleRequest{})
 		if status.Code(err) != codes.Unauthenticated || reasonOf(err) != "INVALID_TOKEN" {
