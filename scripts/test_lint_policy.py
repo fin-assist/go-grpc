@@ -39,8 +39,9 @@ def module_version(module):
 
 # The probe is hermetic: every module it compiles is pinned, so an upstream release cannot break CI.
 # Versions present in go.mod follow it (Renovate updates them there). Renovate does not read the
-# constants below: they are raised by hand in a reviewed PR, when the libraries or services move to a
-# new prometheus/grpc/otel/klog/automaxprocs/automemlimit release, or when the probe needs an API that only a newer release has.
+# literal versions below (otel/log, klog, automaxprocs, automemlimit): they are raised by hand in a
+# reviewed PR, when go.mod moves otel past the release otel/log is paired with, or when the probe
+# needs an API that only a newer release has.
 GO_VERSION = re.search(r"^go (\S+)$", GO_MOD, re.M)[1]
 PINNED = {
     "github.com/prometheus/client_golang": module_version("github.com/prometheus/client_golang"),
