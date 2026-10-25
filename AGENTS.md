@@ -3,7 +3,7 @@
 `github.com/fin-assist/go-grpc` (FIN-250) contains shared gRPC server, outgoing clients and request context.
 Extracted from go-service-template; user/assistant business handlers, wire, access policy and jobs remain in services.
 The library does not own identity keys, tombstone storage, migrations or service configuration.
-Read README.md and this file before changes. Only Codex review is requested while the owner's Claude quota is exhausted.
+Read README.md and this file before changes.
 
 ## Keep this file current
 
@@ -35,7 +35,7 @@ for itself: what it does, its YouTrack issue, which services use it.
 | Public API of the library | `server/`, `client/`, `reqctx/` |
 | Implementation details | `internal/` |
 | No library migrations | services retain their own SQL; `internal/pgtest/` is test infrastructure only |
-| PostgreSQL for tests, up → down → up check | `internal/pgtest/` (mirrors `migratetest` of the service template) |
+| PostgreSQL for tests, up → down → up check | `internal/pgtest/`: only server selection; databases, file rules and the walk delegate to the tagged `go-migrate` (`migratetest`, `migrate.Validate`; FIN-321) |
 | Integration guide for services | `README.md`, «Внедрение» |
 | Versions, compatibility, releases, Renovate | `docs/releasing.md`, `CHANGELOG.md`, `.github/workflows/release.yml`, `renovate.json` |
 | Independent statements coverage guards and changelog checks | `scripts/` |
@@ -45,7 +45,7 @@ for itself: what it does, its YouTrack issue, which services use it.
 ### Stack
 
 Versions are in `go.mod` (Go toolchain included), `.github/workflows/ci.yml` and `Makefile` (golangci-lint,
-gorelease), `internal/pgtest.DefaultImage` (PostgreSQL). The same pieces as the services where needed: pgx v5,
+gorelease), `internal/pgtest.DefaultImage` (PostgreSQL), `go-migrate` (test-only, FIN-321). The same pieces as the services where needed: pgx v5,
 golang-migrate, grpc-go, protobuf, prometheus client_golang, testcontainers-go, squawk. A new dependency is named in
 the PR with why it is needed: every service that imports the library inherits it.
 
