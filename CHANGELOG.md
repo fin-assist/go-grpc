@@ -4,7 +4,12 @@
 
 ## [Unreleased]
 
-### Изменено
+### Добавлено
 
-- FIN-247: только исходный пустой go-library-template сообщает N/A для coverage после обязательного успешного выполнения всех трёх наборов. При появлении production statements автоматически действуют прежние total80; новые библиотеки не наследуют исключение. Проверки suites, required go, защиты и Controller Renovate сохранены; runtime и публичный API не менялись.
-- FIN-243: независимые statements-профили unit/integration/API и обязательные пороги80 с готовым go-test-coverage v2.20.1; guards пустых/пропущенных наборов, исполнение Example/Fuzz и проверки публичного Go API. Только тестовый пакет internal/pgtest исключён из одинакового знаменателя всех трёх уровней; его тесты продолжают выполняться. Документирован эффект постоянно красного go на Renovate retry/close/quarantine и необходимость отдельного решения об операционной паузе. Runtime и экспортируемый API не менялись.
+- FIN-250: публичные server/client/reqctx из шаблона сервиса: порядок identity/policy/tombstone/validation/recovery, masking, RED, deadlines/retry/stream и shutdown; сохранена cleanup policy AllowDeleted из user. Реальные transport и внешние consumer API тесты, независимые total80 и строгие guards. Библиотека не содержит миграций и не меняет сервисы; ключи и tombstone storage остаются в существующих библиотеках.
+
+### Исправлено
+
+- FIN-250: устранены подтверждённые ревью утечки raw error/SQL/DSN/token, panic payload и stack trace в общем gRPC-журнале, включая ошибки verifier/tombstone/validation. Логи содержат безопасные event/method/code/reason; RPC status/details, RED и recovery сохранены. Негативные unit/integration/API проверки unary и streaming больше не закрепляют небезопасный исходный logging.
+
+- FIN-260: выключенный Renovate controller завершается до credential/config/event/API; непривилегированный workflow gate допускает Environment только при точном case-sensitive true. Явный bootstrap отдельно требует credential, enabled guards сохранены; добавлены негативные CLI/workflow регрессии. Runtime библиотеки и независимое покрытие не меняются.
