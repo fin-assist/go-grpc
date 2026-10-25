@@ -1,6 +1,6 @@
 # Изменения
 
-Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии и выпуск — [docs/releasing.md](docs/releasing.md). Каждый PR, который меняет API или поведение библиотеки, добавляет строку в «Unreleased»; при выпуске раздел получает номер версии и дату.
+Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии и выпуск — [docs/releasing.md](docs/releasing.md). Каждый PR библиотеки, включая документацию, тесты и CI, добавляет строку в «Unreleased»; исключение — полностью ботские PR Renovate только с зависимостями, их сводку по `go.mod` добавляет PR выпуска. При выпуске раздел получает номер версии и дату.
 
 ## [Unreleased]
 
@@ -10,6 +10,7 @@
 
 ### Изменено
 
+- FIN-337 (по FIN-308, FIN-309): из go-library-template перенесены запреты `forbidigo` и `depguard` FIN-294 (стандартные логгеры, глобальный реестр метрик, `http.DefaultClient` и функции пакета `http`, глобальные провайдеры `otel`, `os/signal`, окружение через `os`/`syscall`/`golang.org/x/sys`, функции `flag`, `os.Stdout`/`Stderr`/`Stdin`, `os.TempDir`/`CreateTemp`/`MkdirTemp`, `runtime/debug.Set*`, `runtime.GOMAXPROCS`, смена рабочего каталога; пустой импорт `expvar`, `net/http/pprof`, `golang.org/x/net/trace`, `grpclog/glogger`, `glog`, `klog`, `automaxprocs`, `automemlimit`) с проверкой `scripts/test_lint_policy.py` (версии prometheus, grpc, otel и x/sys в пробном модуле берутся из `go.mod`, вручную закреплены только otel/log, klog, automaxprocs, automemlimit); защита CI FIN-301: checkout в jobs `lint`, `api`, `migrations` без сохранённого токена, `base_ref` передаётся в скрипт через окружение, проверка `scripts/test_workflow_hardening.py`; формулировки FIN-307 в `docs/releasing.md` и вступлении CHANGELOG: строка в `[Unreleased]` от каждого PR, включая документацию, тесты и CI, заголовок PR выпуска с ключом FIN. Нарушений новых запретов в коде библиотеки нет; runtime и экспортируемый API не менялись.
 - FIN-321: `internal/pgtest` больше не копирует go-migrate (по FIN-310): оставлен только выбор тестового PostgreSQL (`TEST_DATABASE_URL`/testcontainers, skip локально, ошибка в CI), создание БД, правила файлов и обход up → down → up делегированы `github.com/fin-assist/go-migrate` v0.1.1. go-migrate импортируется только тестами, но как require модуля входит в граф модулей и повышает минимальную версию go-migrate у сервисов, импортирующих библиотеку (сервисы уже на v0.1.1). Исключение `internal/pgtest` из покрытия не изменилось; runtime и экспортируемый API не менялись.
 - FIN-316: из `AGENTS.md` убрано временное правило запрашивать ревью только у Codex: квота Claude восстановлена, ревью снова запрашивается одним комментарием `@codex @claude` по общему правилу Workflow. Runtime и API библиотеки не менялись.
 
