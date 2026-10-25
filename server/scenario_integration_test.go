@@ -37,13 +37,16 @@ func TestIntegrationRequestIDOverTransport(t *testing.T) {
 		name   string
 		values []string
 		want   string // "" means a generated ID
+		logged string // the masked x-request-id of the debug metadata, when it matters
 	}{
-		{"uuid", []string{"0b6a7f6e-3c1d-4c43-9a51-8f0d2b1e4a77"}, "0b6a7f6e-3c1d-4c43-9a51-8f0d2b1e4a77"},
-		{"128 characters", []string{limit}, limit},
-		{"129 characters", []string{tooLong}, ""},
-		{"space", []string{"bad id"}, ""},
-		{"absent", nil, ""},
-		{"two values", []string{"first-id", "second-id"}, "first-id"},
+		{"uuid", []string{"0b6a7f6e-3c1d-4c43-9a51-8f0d2b1e4a77"}, "0b6a7f6e-3c1d-4c43-9a51-8f0d2b1e4a77", ""},
+		{"128 characters", []string{limit}, limit, ""},
+		{"129 characters", []string{tooLong}, "", ""},
+		{"space", []string{"bad id"}, "", ""},
+		{"absent", nil, "", ""},
+		{"two values", []string{"first-id", "second-id"}, "first-id", "first-id,second-id"},
+		{"valid first, rejected second", []string{"first-id", "bad id"}, "first-id", "first-id,(rejected)"},
+		{"rejected first, valid second", []string{"bad id", "second-id"}, "", "(rejected),second-id"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := startScenario(t, validationMessage(t).Descriptor())
@@ -55,11 +58,14 @@ func TestIntegrationRequestIDOverTransport(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := <-s.svc.ids
-			if tc.want != "" && got != tc.want || tc.want == "" && !generatedRequestID.MatchString(got) {
+			if tc.want != "" && got != tc.want || tc.want == "" && (!generatedRequestID.MatchString(got) || strings.Contains(strings.Join(tc.values, ","), got)) {
 				t.Fatalf("handler saw request ID %q, want %q", got, tc.want)
 			}
 			if !strings.Contains(s.logs.String(), `"request_id":"`+got+`"`) {
 				t.Fatalf("call line lacks the request ID %q: %s", got, s.logs.String())
+			}
+			if tc.logged != "" && !strings.Contains(s.logs.String(), `"x-request-id":"`+tc.logged+`"`) {
+				t.Fatalf("debug metadata lacks x-request-id %q: %s", tc.logged, s.logs.String())
 			}
 			for _, rejected := range []string{tooLong, "bad id"} {
 				if strings.Contains(s.logs.String(), rejected) {
@@ -135,6 +141,27 @@ func waitListenerClosed(t *testing.T, s *scenario) {
 	t.Fatal("Shutdown did not start the graceful stop")
 }
 
+// waitHolding waits until the Hold handler runs, or fails when the call ends first.
+func waitHolding(t *testing.T, s *scenario, call context.Context) {
+	t.Helper()
+	select {
+	case <-s.svc.holding:
+	case <-call.Done():
+		t.Fatalf("Hold handler never started: %v", call.Err())
+	}
+}
+
+// assertStillStopping fails when Shutdown returns while the handler is still held. The
+// window bounds a negative check; it does not synchronise anything.
+func assertStillStopping(t *testing.T, stopped <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-stopped:
+		t.Fatal("Shutdown returned while a stream was still running")
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
 // A stream that finishes on its own before the shutdown context ends is not cut: Shutdown
 // waits for it and the caller gets its response and OK, not a transport error.
 func TestIntegrationShutdownLetsActiveStreamFinish(t *testing.T) {
@@ -148,18 +175,14 @@ func TestIntegrationShutdownLetsActiveStreamFinish(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = st.CloseSend()
-	<-s.svc.holding
+	waitHolding(t, s, st.Context())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	stopped := make(chan struct{})
 	go func() { s.srv.Shutdown(ctx, 0); close(stopped) }()
 	waitListenerClosed(t, s)
-	select {
-	case <-stopped:
-		t.Fatal("Shutdown returned while a stream was still running")
-	default:
-	}
+	assertStillStopping(t, stopped)
 	close(s.svc.release)
 	if err := <-s.svc.holdEnd; err != nil {
 		t.Fatalf("handler was cut: %v", err)

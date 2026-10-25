@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
@@ -213,6 +214,8 @@ func TestUnitRequestIDShapeAndLength(t *testing.T) {
 		{"newline", []string{"id\nforged"}, ""},
 		{"non-ascii", []string{"идентификатор"}, ""},
 		{"first of two", []string{"first", "second"}, "first"},
+		{"valid first, rejected second", []string{"first", "bad id"}, "first"},
+		{"rejected first, valid second", []string{"bad id", "second"}, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			md := metadata.MD{}
@@ -227,7 +230,7 @@ func TestUnitRequestIDShapeAndLength(t *testing.T) {
 				return
 			}
 			second := reqctx.RequestID(withRequestID(metadata.NewIncomingContext(t.Context(), md)))
-			if len(first) != 32 || strings.Trim(first, "0123456789abcdef") != "" || first == second {
+			if len(first) != 32 || strings.Trim(first, "0123456789abcdef") != "" || first == second || slices.Contains(tc.values, first) {
 				t.Fatalf("generated IDs %q, %q: want distinct 32-character hex values", first, second)
 			}
 		})

@@ -90,11 +90,12 @@ func TestAPIShutdownCompletesFinishingStream(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = st.CloseSend()
-	<-s.svc.holding
+	waitHolding(t, s, ctx)
 
 	stopped := make(chan struct{})
 	go func() { s.srv.Shutdown(ctx, 0); close(stopped) }()
 	waitListenerClosed(t, s)
+	assertStillStopping(t, stopped)
 	close(s.svc.release)
 	if err := st.RecvMsg(&testgrpc.Empty{}); err != nil {
 		t.Fatalf("stream response: %v", err)
@@ -102,7 +103,11 @@ func TestAPIShutdownCompletesFinishingStream(t *testing.T) {
 	if err := st.RecvMsg(&testgrpc.Empty{}); !errors.Is(err, io.EOF) {
 		t.Fatalf("stream end: %v, want OK", err)
 	}
-	<-stopped
+	select {
+	case <-stopped:
+	case <-ctx.Done():
+		t.Fatal("Shutdown did not return after the stream finished")
+	}
 	if ctx.Err() != nil {
 		t.Fatal("Shutdown waited until its deadline instead of the stream")
 	}
