@@ -628,3 +628,75 @@ func tokenMessage(t *testing.T) (*dynamicpb.Message, protoreflect.MessageDescrip
 	m.Set(of.ByName("one"), protoreflect.ValueOfMessage(newInner()))
 	return m, outer
 }
+
+// unnamedCaller verifies every service token but names no caller, as a broken verifier might.
+type unnamedCaller struct{}
+
+func (unnamedCaller) VerifyService(context.Context, string) (string, error) { return "", nil }
+
+// FIN-299, the analytics case of grpc-api.md 3.3: GetAnalytics is a user call from bank-bff
+// and a system call from assistant. A generated client of a consumer cannot reach the system
+// variant without a verified user token, and an unnamed caller is refused.
+func TestAPIMixedModelRequiresVerifiedUserForUserPath(t *testing.T) {
+	e := start(t, policy())
+	c := testgrpc.NewTestServiceClient(e.conn)
+	cases := []struct {
+		name string
+		ctx  context.Context
+	}{
+		{"bank-bff without authorization", call(t, "bank-bff", "")},
+		{"bank-bff with a malformed authorization", call(t, "bank-bff", "", "authorization", "Basic dXNlcjpwYXNz")},
+		{"assistant with a malformed authorization", call(t, "assistant", "", "authorization", "Bearer ")},
+		{"assistant with a forged token", call(t, "assistant", "", "authorization", "Bearer forged")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := c.UnaryCall(tc.ctx, &testgrpc.SimpleRequest{})
+			if status.Code(err) != codes.Unauthenticated || reasonOf(err) != "INVALID_TOKEN" {
+				t.Fatalf("got %v (reason %q), want UNAUTHENTICATED INVALID_TOKEN", err, reasonOf(err))
+			}
+		})
+	}
+	select {
+	case got := <-e.svc.got:
+		t.Fatalf("the handler ran as %+v without a verified user", got)
+	default:
+	}
+	// The contract paths still work: system call from assistant, user call from bank-bff.
+	if _, err := c.UnaryCall(call(t, "assistant", ""), &testgrpc.SimpleRequest{}); reasonOf(err) != "NOT_FOUND" {
+		t.Fatalf("system variant from assistant: %v", err)
+	}
+	if got := <-e.svc.got; got.hasUser || got.caller != "assistant" {
+		t.Fatalf("system variant: %+v", got)
+	}
+	if _, err := c.UnaryCall(call(t, "bank-bff", "u7"), &testgrpc.SimpleRequest{}); reasonOf(err) != "NOT_FOUND" {
+		t.Fatalf("user variant from bank-bff: %v", err)
+	}
+	if got := <-e.svc.got; got.user != "u7" || got.caller != "bank-bff" {
+		t.Fatalf("user variant: %+v", got)
+	}
+
+	unnamed := start(t, policy(), func(d *server.Deps) { d.Services = unnamedCaller{} })
+	_, err := testgrpc.NewTestServiceClient(unnamed.conn).EmptyCall(call(t, "bank-bff", "u1"), &testgrpc.Empty{})
+	if status.Code(err) != codes.Unauthenticated || len(status.Convert(err).Details()) != 0 {
+		t.Fatalf("unnamed caller: got %v, want a bare UNAUTHENTICATED", err)
+	}
+	if n := metric(unnamed.reg, "finassist_grpc_denied_total", map[string]string{"method": emptyCall, "caller": "", "cause": "bad_service_token"}); n != 1 {
+		t.Fatalf("denied{bad_service_token} = %v, want 1", n)
+	}
+	select {
+	case <-unnamed.svc.got:
+		t.Fatal("the handler ran for an unnamed caller")
+	default:
+	}
+	empty := server.Policy{emptyCall: {Callers: []string{""}, Model: server.ModelNoUser}}
+	srv, err := server.New(server.Options{}, server.Deps{Logger: slog.New(slog.DiscardHandler), Metrics: prometheus.NewRegistry(), Policy: empty,
+		Services: server.DevServiceVerifier{}, Users: server.DevUserVerifier{}, Tombstones: server.NoTombstones{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(srv.GRPC().Stop)
+	if srv.Check() == nil {
+		t.Fatal("a policy with an empty caller name was accepted")
+	}
+}

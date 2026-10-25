@@ -20,7 +20,9 @@ const (
 	// field, the handler takes it from there. An authorization header is ignored.
 	ModelSystem
 	// ModelMixed: user call when authorization is present, system call otherwise
-	// (GetAnalytics, ListPeriods, GetAssistantConsentStatus: optional user_id).
+	// (GetAnalytics, ListPeriods, GetAssistantConsentStatus: optional user_id). A present
+	// but malformed authorization is INVALID_TOKEN, never a system call; bank-bff always
+	// calls as a user, so its call without authorization is INVALID_TOKEN too.
 	ModelMixed
 	// ModelNoUser: no user token yet (sign-in: AuthService). authorization is ignored.
 	ModelNoUser
@@ -45,7 +47,7 @@ const AnyCaller = "*"
 
 // Rule says who may call a method and how.
 type Rule struct {
-	Callers []string // ServiceAccount names (bank-bff, user, ...), or AnyCaller
+	Callers []string // non-empty ServiceAccount names (bank-bff, user, ...), or AnyCaller
 	Model   Model
 	// AllowDeleted permits an authenticated deleted user only on explicit cleanup routes.
 	// It must be an exact ModelUser method, never a wildcard or metadata flag.
@@ -92,6 +94,9 @@ func (p Policy) validate(srv *grpc.Server) error {
 		}
 		if len(r.Callers) == 0 {
 			return fmt.Errorf("access policy: %s has no callers", key)
+		}
+		if slices.Contains(r.Callers, "") {
+			return fmt.Errorf("access policy: %s has an empty caller name", key)
 		}
 		if r.AllowDeleted && (r.Model != ModelUser || strings.HasSuffix(key, "/*")) {
 			return fmt.Errorf("access policy: %s cannot admit deleted users", key)
