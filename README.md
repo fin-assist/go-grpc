@@ -60,3 +60,7 @@ Peer/method/policy — статические значения сервиса; u
 ## Выключенный контроллер FIN-260
 
 `RENOVATE_POLICY_ENABLED` включает controller только при точном строчном `true`. Отсутствие/false/TRUE/True — успешный no-op до token/config/event/API. Отдельный непривилегированный workflow gate не получает secrets, Environment и checkout; только его канонический output допускает reconcile в main-only Environment. Явный `--bootstrap` остаётся отдельной credential-required операцией и не включает controller. Enabled guards, проверки защиты и текущего head сохранены. Этот PR не меняет флаги/защиты/policy branch; bootstrap/readback координируется отдельно по FIN-260.
+
+Проверка `api` устойчива к публикации тега во время CI: release-коммит сравнивается
+с предыдущим выпуском, удалённый тег проверяется по commit до и после `gorelease`.
+Подробности и границы исключения — [docs/releasing.md](docs/releasing.md#проверка-версии-в-ci-fin-264).
