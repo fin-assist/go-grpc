@@ -80,3 +80,22 @@ Install scripts отключены намеренно: в этом fixture от�
 До FIN-247 пустой профиль делал required go постоянно красным, а при RENOVATE_POLICY_ENABLED=true controller после одного retry закрывал бы dependency-only PR и помещал версии в exact quarantine. 25.10.2026 в FIN-245 владелец сначала разрешил операционную паузу в библиотечном шаблоне и трёх сервисных каркасах, затем отдельно поручил вернуть true; включение и успешные controller runs зафиксированы в FIN-245. Этот PR не меняет флаг, защиты, существующие PR или quarantine. Состояние переменной проверяется в GitHub, документация не подтверждает её текущее значение.
 
 У go-service-template, analytics и bank-statement-data после FIN-238 есть исполняемый код и недостигнутые пороги: N/A к ним не применяется. При включённом controller реальные failures по-прежнему приводят к retry/close/quarantine по FIN-211. Пауза, восстановление и controller outcomes отслеживаются в [FIN-245](https://finassist.youtrack.cloud/issue/FIN-245); повышение покрытия сервисного шаблона — [FIN-246](https://finassist.youtrack.cloud/issue/FIN-246). Защиты и пороги ради автомержа не ослабляются.
+
+
+## Уточнение защит FIN-447
+
+Перед baseline sync и обработкой PR runtime требует для каждого configured required check ровно одну
+привязку к GitHub Actions App15368, strict и enforce_admins, owner-only push и явные false
+allow_force_pushes/allow_deletions. Отсутствующие/чужие/дублированные bindings и ослабленные флаги
+останавливают reconciliation до записи baseline или PR state. Дополнительные внешние required checks
+сохраняются и учитываются отдельно при оценке CI.
+
+Mergeability проверяется при первичном чтении PR и в каждом fresh перед claim, quarantine и close.
+Конфликт и неизвестный результат оставляют PR открытым, без расходования нового retry budget
+или изменения policy. При поздней смене после ранее сохранённого claim budget сохраняется;
+нового автоматического повтора нет. Неконфликтный mergeable=true со state blocked/behind
+от красного CI по-прежнему допускает штатный retry и подтверждённое закрытие; green merge
+сохраняет прежнее более строгое условие clean/unstable.
+
+Это исправление CI-контроллера не меняет runtime/API go-grpc и не включает controller:
+внешние флаги/защиты/секреты и активация остаются отдельными действиями владельца.
