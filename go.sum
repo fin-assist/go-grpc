@@ -53,8 +53,8 @@ github.com/felixge/httpsnoop v1.1.0 h1:3YtUj32ZZkqZtt3sZZsClsymw/QDuVfpNhoA31zeO
 github.com/felixge/httpsnoop v1.1.0/go.mod h1:Zqxgdd+1Rkcz8euOqdr7lqgCRJztwr5hp9vDSi5UZCE=
 github.com/fin-assist/contracts/gen/go v0.11.0 h1:L1wnWIXQiadeEtWYlIoYBd48+V/cUA9kOy6Q4T1JXaU=
 github.com/fin-assist/contracts/gen/go v0.11.0/go.mod h1:01EW5UMu1+0hxxsnnzxdDoRiY6TQyTyx7zuMxpFUUsk=
-github.com/fin-assist/go-migrate v0.1.1 h1:tSXiKv/itPM1E8D+pK8Zel6bUD6eB+ENVb/5hpJm3QQ=
-github.com/fin-assist/go-migrate v0.1.1/go.mod h1:HrFhmWrq0nOj7Aqtds+MuqMRNavS1SzKXcdSEMnPFW4=
+github.com/fin-assist/go-migrate v0.2.1 h1:CKGbx1ogExInZT477XA+zBADX/FvCthT7fbES4N5UCY=
+github.com/fin-assist/go-migrate v0.2.1/go.mod h1:HrFhmWrq0nOj7Aqtds+MuqMRNavS1SzKXcdSEMnPFW4=
 github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
 github.com/go-logr/logr v1.4.4 h1:tG4xh9yMsRCAiodLVTxyrkzSZ9+o0L1Kg/+cPVcbP/8=
 github.com/go-logr/logr v1.4.4/go.mod h1:9T104GzyrTigFIr8wt5mBrctHMim0Nb2HLGrmQ40KvY=
